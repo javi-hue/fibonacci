@@ -2,11 +2,13 @@
   const canvas = document.getElementById('chart');
   const ctx = canvas.getContext('2d');
   const drawBtn = document.getElementById('drawBtn');
+  const exportBtn = document.getElementById('exportBtn');
   const termsInput = document.getElementById('terms');
   const typeSelect = document.getElementById('type');
   const logCheck = document.getElementById('logScale');
   const valuesPre = document.getElementById('values');
   const tooltip = document.getElementById('tooltip');
+  let lastPlot = null;
 
   function resizeCanvas() {
     const ratio = window.devicePixelRatio || 1;
@@ -29,53 +31,39 @@
     return arr;
   }
 
-  function getScale(data, w, h, padding, log) {
-    const transformed = log ? data.map(v => (v <= 0 ? 0 : Math.log10(v))) : data;
-    const maxVal = Math.max(...transformed);
-    const minVal = Math.min(...transformed);
-    const xStep = (w - padding.left - padding.right) / Math.max(1, data.length - 1);
-    const yRange = maxVal - minVal || 1;
+  function getScale(data, w, h, pad, log) {
+    const t = log ? data.map(v => (v <= 0 ? 0 : Math.log10(v))) : data;
+    const max = Math.max(...t);
+    const min = Math.min(...t);
+    const step = (w - pad.left - pad.right) / Math.max(1, data.length - 1);
+    const range = max - min || 1;
     return {
-      maxVal, minVal, xStep, yRange, log,
-      xToCanvas: (i) => padding.left + i * xStep,
-      yToCanvas: (v) => {
+      x: i => pad.left + i * step,
+      y: v => {
         const val = log ? (v <= 0 ? 0 : Math.log10(v)) : v;
-        return padding.top + (h - padding.top - padding.bottom) * (1 - (val - minVal) / yRange);
-      }
+        return pad.top + (h - pad.top - pad.bottom)*(1 - (val - min)/range);
+      },
+      min, max, range
     };
   }
 
-  function drawAxes(w, h, padding, scale) {
+  function drawAxes(w, h, pad, scale, log) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 1;
-
-    // grid horizontal
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.beginPath();
     for (let i = 0; i <= 5; i++) {
-      const y = padding.top + i * (h - padding.top - padding.bottom)/5;
-      ctx.moveTo(padding.left, y);
-      ctx.lineTo(w - padding.right, y);
+      const y = pad.top + i * (h - pad.top - pad.bottom)/5;
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
     }
     ctx.stroke();
-
-    // axes
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.beginPath();
-    ctx.moveTo(padding.left, h - padding.bottom);
-    ctx.lineTo(w - padding.right, h - padding.bottom);
-    ctx.moveTo(padding.left, padding.top);
-    ctx.lineTo(padding.left, h - padding.bottom);
-    ctx.stroke();
-
-    // y labels
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.font = '12px system-ui, Arial';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '12px system-ui';
     for (let i = 0; i <= 5; i++) {
-      const val = scale.minVal + (5 - i) * (scale.yRange / 5);
-      const shown = scale.log ? `10^${val.toFixed(1)}` : Math.round(val);
-      const y = padding.top + i * (h - padding.top - padding.bottom)/5 + 4;
-      ctx.fillText(shown, 6, y);
+      const val = scale.min + (5 - i)*(scale.range/5);
+      const txt = log ? `10^${val.toFixed(1)}` : Math.round(val);
+      const y = pad.top + i * (h - pad.top - pad.bottom)/5 + 4;
+      ctx.fillText(txt, 6, y);
     }
     ctx.restore();
   }
@@ -84,93 +72,94 @@
     resizeCanvas();
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    const padding = { top: 28, right: 24, bottom: 36, left: 36 };
-    const scale = getScale(data, w, h, padding, log);
+    const pad = { top: 28, right: 24, bottom: 36, left: 44 };
+    const scale = getScale(data, w, h, pad, log);
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    drawAxes(w,h,padding,scale);
-    lastPlot = { data, scale, padding, w, h, kind };
+    drawAxes(w,h,pad,scale,log);
+    lastPlot = { data, scale, pad, w, h };
 
-    // animación
-    let progress = 0;
-    const steps = 60; // frames (~1s)
-
-    function animate() {
+    let frame = 0;
+    const steps = 60;
+    const animate = () => {
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawAxes(w,h,padding,scale);
-      progress++;
-      const ratio = progress / steps;
-      const visible = Math.floor(data.length * ratio);
-      const interp = (data.length * ratio) % 1;
-
+      drawAxes(w,h,pad,scale,log);
+      const ratio = frame/steps;
+      const count = Math.floor(data.length * ratio);
       if (kind === 'bar') {
-        const barW = Math.max(6, (w - padding.left - padding.right) / data.length * 0.7);
-        ctx.fillStyle = 'rgba(125,211,252,0.85)';
-        data.forEach((v,i) => {
-          if (i <= visible) {
-            const x = scale.xToCanvas(i) - barW/2;
-            const y = scale.yToCanvas(v);
-            const hBar = (h - padding.bottom) - y;
-            ctx.fillRect(x, y, barW, hBar);
+        const barW = Math.max(6, (w - pad.left - pad.right)/data.length*0.7);
+        ctx.fillStyle = 'rgba(0,240,255,0.9)';
+        data.forEach((v,i)=>{
+          if (i<=count){
+            const x = scale.x(i)-barW/2;
+            const y = scale.y(v);
+            ctx.fillRect(x,y,barW,(h - pad.bottom)-y);
           }
         });
       } else {
         ctx.beginPath();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgba(125,211,252,0.95)';
-        data.forEach((v,i) => {
-          if (i === 0) ctx.moveTo(scale.xToCanvas(0), scale.yToCanvas(data[0]));
-          else if (i <= visible) ctx.lineTo(scale.xToCanvas(i), scale.yToCanvas(v));
+        ctx.lineWidth=2.2;
+        ctx.strokeStyle='rgba(0,240,255,0.9)';
+        data.forEach((v,i)=>{
+          if (i===0) ctx.moveTo(scale.x(0),scale.y(data[0]));
+          else if (i<=count) ctx.lineTo(scale.x(i),scale.y(v));
         });
         ctx.stroke();
-        ctx.fillStyle = 'rgba(255,255,255,0.95)';
-        data.forEach((v,i) => {
-          if (i <= visible)
-            ctx.beginPath(), ctx.arc(scale.xToCanvas(i), scale.yToCanvas(v), 4, 0, Math.PI*2), ctx.fill();
+        ctx.fillStyle='#fff';
+        data.forEach((v,i)=>{
+          if (i<=count){
+            ctx.beginPath();
+            ctx.arc(scale.x(i),scale.y(v),4,0,Math.PI*2);
+            ctx.fill();
+          }
         });
       }
-
-      if (progress < steps) requestAnimationFrame(animate);
-    }
+      frame++;
+      if (frame<=steps) requestAnimationFrame(animate);
+    };
     requestAnimationFrame(animate);
   }
 
-  let lastPlot = null;
-
-  canvas.addEventListener('mousemove', (ev) => {
-    if (!lastPlot) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = ev.clientX - rect.left;
-    const my = ev.clientY - rect.top;
-    const { data, scale } = lastPlot;
-    let closest = null;
-    data.forEach((v,i) => {
-      const x = scale.xToCanvas(i);
-      const y = scale.yToCanvas(v);
-      const dist = Math.hypot(x - mx, y - my);
-      if (closest === null || dist < closest.dist) closest = {i, v, x, y, dist};
+  // Tooltip
+  canvas.addEventListener('mousemove', e=>{
+    if(!lastPlot) return;
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+    const {data, scale} = lastPlot;
+    let c=null;
+    data.forEach((v,i)=>{
+      const x=scale.x(i), y=scale.y(v);
+      const d=Math.hypot(x-mx,y-my);
+      if(!c||d<c.d)c={i,v,x,y,d};
     });
-    if (closest && closest.dist < 10) {
-      tooltip.hidden = false;
-      tooltip.style.left = `${closest.x}px`;
-      tooltip.style.top = `${closest.y}px`;
-      tooltip.textContent = `n=${closest.i} → ${closest.v}`;
-    } else {
-      tooltip.hidden = true;
-    }
+    if(c&&c.d<10){
+      tooltip.hidden=false;
+      tooltip.style.left=`${c.x}px`;
+      tooltip.style.top=`${c.y}px`;
+      tooltip.textContent=`n=${c.i} → ${c.v}`;
+    }else tooltip.hidden=true;
   });
-  canvas.addEventListener('mouseleave', () => tooltip.hidden = true);
+  canvas.addEventListener('mouseleave',()=>tooltip.hidden=true);
 
-  function showValues(data) {
-    valuesPre.textContent = data.map((v,i)=> `${i}: ${v}`).join('\n');
+  function showValues(data){
+    valuesPre.textContent=data.map((v,i)=>`${i}: ${v}`).join('\n');
   }
 
-  function draw() {
-    let n = parseInt(termsInput.value, 10) || 1;
-    n = Math.max(1, Math.min(n, 50));
-    const data = fibonacci(n);
+  function draw(){
+    let n=parseInt(termsInput.value)||1;
+    n=Math.max(1,Math.min(n,50));
+    const data=fibonacci(n);
     showValues(data);
-    plotData(data, typeSelect.value, logCheck.checked);
+    plotData(data,typeSelect.value,logCheck.checked);
   }
 
-  drawBtn.addEventListener('click', draw);
+  drawBtn.addEventListener('click',draw);
+
+  // Exportar gráfico a PNG
+  exportBtn.addEventListener('click',()=>{
+    const link=document.createElement('a');
+    link.download=`fibonacci_${Date.now()}.png`;
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+  });
 })();
