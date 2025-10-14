@@ -1,29 +1,41 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gráfica de la Secuencia Fibonacci</title>
-  <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Fibonacci</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="background-symbols"></div>
-  
-  <div class="container">
-    <h1>🔢 Secuencia de Fibonacci</h1>
+    <div class="container">
+        <h1>🌀 Visualizador de Fibonacci</h1>
+        <p class="subtitle">Explora la belleza matemática de la secuencia de Fibonacci</p>
+        
+        <div class="controls">
+            <div class="input-group">
+                <label for="terms">Términos:</label>
+                <input type="number" id="terms" min="2" max="50" value="10">
+            </div>
+            <button class="btn-generate" onclick="generateFibonacci()">✨ Generar Gráfico</button>
+            <button class="btn-download" onclick="downloadChart()">📥 Descargar Imagen</button>
+        </div>
 
-    <div class="controls">
-      <label for="numTerms">Cantidad de términos:</label>
-      <input type="number" id="numTerms" min="2" max="30" value="10">
-      <button id="generateBtn">Generar y Graficar</button>
+        <div class="chart-container">
+            <canvas id="fibonacciChart"></canvas>
+        </div>
+
+        <div class="sequence-display">
+            <h3>📊 Secuencia Generada:</h3>
+            <div class="sequence-numbers" id="sequenceOutput">Genera una secuencia para visualizar los números...</div>
+        </div>
+
+        <div class="info-box">
+            <p><strong>Suma total:</strong> <span id="sumTotal">-</span></p>
+            <p><strong>Razón áurea (últimos 2 términos):</strong> <span id="goldenRatio">-</span></p>
+        </div>
     </div>
 
-    <canvas id="fibonacciChart"></canvas>
-  </div>
-
-  <footer>Creado por Javier • © 2025</footer>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
