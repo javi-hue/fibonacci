@@ -1,14 +1,13 @@
-// script.js
 (() => {
   const canvas = document.getElementById('chart');
   const ctx = canvas.getContext('2d');
   const drawBtn = document.getElementById('drawBtn');
   const termsInput = document.getElementById('terms');
   const typeSelect = document.getElementById('type');
+  const logCheck = document.getElementById('logScale');
   const valuesPre = document.getElementById('values');
   const tooltip = document.getElementById('tooltip');
 
-  // DPR scaling to make canvas crisp on hi-dpi screens
   function resizeCanvas() {
     const ratio = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
@@ -20,7 +19,6 @@
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 
-  // Generate Fibonacci sequence (first n terms, starting with 0,1)
   function fibonacci(n) {
     const arr = [];
     for (let i = 0; i < n; i++) {
@@ -31,25 +29,28 @@
     return arr;
   }
 
-  // Map values to canvas coordinates
-  function getScale(data, w, h, padding) {
-    const maxVal = Math.max(...data);
-    const minVal = Math.min(...data);
+  function getScale(data, w, h, padding, log) {
+    const transformed = log ? data.map(v => (v <= 0 ? 0 : Math.log10(v))) : data;
+    const maxVal = Math.max(...transformed);
+    const minVal = Math.min(...transformed);
     const xStep = (w - padding.left - padding.right) / Math.max(1, data.length - 1);
     const yRange = maxVal - minVal || 1;
-    return { maxVal, minVal, xStep, yRange,
+    return {
+      maxVal, minVal, xStep, yRange, log,
       xToCanvas: (i) => padding.left + i * xStep,
-      yToCanvas: (v) => padding.top + (h - padding.top - padding.bottom) * (1 - (v - minVal) / yRange)
+      yToCanvas: (v) => {
+        const val = log ? (v <= 0 ? 0 : Math.log10(v)) : v;
+        return padding.top + (h - padding.top - padding.bottom) * (1 - (val - minVal) / yRange);
+      }
     };
   }
 
-  // Draw axes, grid and labels
   function drawAxes(w, h, padding, scale) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.lineWidth = 1;
 
-    // horizontal grid lines (5)
+    // grid horizontal
     ctx.beginPath();
     for (let i = 0; i <= 5; i++) {
       const y = padding.top + i * (h - padding.top - padding.bottom)/5;
@@ -58,13 +59,11 @@
     }
     ctx.stroke();
 
-    // axes lines
+    // axes
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.beginPath();
-    // x axis
     ctx.moveTo(padding.left, h - padding.bottom);
     ctx.lineTo(w - padding.right, h - padding.bottom);
-    // y axis
     ctx.moveTo(padding.left, padding.top);
     ctx.lineTo(padding.left, h - padding.bottom);
     ctx.stroke();
@@ -74,67 +73,69 @@
     ctx.font = '12px system-ui, Arial';
     for (let i = 0; i <= 5; i++) {
       const val = scale.minVal + (5 - i) * (scale.yRange / 5);
+      const shown = scale.log ? `10^${val.toFixed(1)}` : Math.round(val);
       const y = padding.top + i * (h - padding.top - padding.bottom)/5 + 4;
-      ctx.fillText(Math.round(val), 6, y);
+      ctx.fillText(shown, 6, y);
     }
     ctx.restore();
   }
 
-  // Plot data as line, bars or dots
-  function plotData(data, kind) {
+  function plotData(data, kind, log) {
     resizeCanvas();
-    const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     const padding = { top: 28, right: 24, bottom: 36, left: 36 };
-    const scale = getScale(data, w, h, padding);
-
-    // clear
+    const scale = getScale(data, w, h, padding, log);
     ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    // draw axes & grid
     drawAxes(w,h,padding,scale);
-
-    // draw depending on type
-    if (kind === 'bar') {
-      const barW = Math.max(6, (w - padding.left - padding.right) / data.length * 0.7);
-      ctx.fillStyle = 'rgba(125,211,252,0.85)'; // accent-like
-      data.forEach((v,i) => {
-        const x = scale.xToCanvas(i) - barW/2;
-        const y = scale.yToCanvas(v);
-        const heightBar = (h - padding.bottom) - y;
-        ctx.fillRect(x, y, barW, heightBar);
-      });
-    } else {
-      // line or dots
-      ctx.beginPath();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(125,211,252,0.95)';
-      data.forEach((v,i) => {
-        const x = scale.xToCanvas(i);
-        const y = scale.yToCanvas(v);
-        if (i === 0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
-      });
-      if (kind === 'line') ctx.stroke();
-
-      // draw points
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      data.forEach((v,i) => {
-        const x = scale.xToCanvas(i);
-        const y = scale.yToCanvas(v);
-        ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI*2);
-        ctx.fill();
-      });
-    }
-
-    // store positions for interactivity
     lastPlot = { data, scale, padding, w, h, kind };
+
+    // animación
+    let progress = 0;
+    const steps = 60; // frames (~1s)
+
+    function animate() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawAxes(w,h,padding,scale);
+      progress++;
+      const ratio = progress / steps;
+      const visible = Math.floor(data.length * ratio);
+      const interp = (data.length * ratio) % 1;
+
+      if (kind === 'bar') {
+        const barW = Math.max(6, (w - padding.left - padding.right) / data.length * 0.7);
+        ctx.fillStyle = 'rgba(125,211,252,0.85)';
+        data.forEach((v,i) => {
+          if (i <= visible) {
+            const x = scale.xToCanvas(i) - barW/2;
+            const y = scale.yToCanvas(v);
+            const hBar = (h - padding.bottom) - y;
+            ctx.fillRect(x, y, barW, hBar);
+          }
+        });
+      } else {
+        ctx.beginPath();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(125,211,252,0.95)';
+        data.forEach((v,i) => {
+          if (i === 0) ctx.moveTo(scale.xToCanvas(0), scale.yToCanvas(data[0]));
+          else if (i <= visible) ctx.lineTo(scale.xToCanvas(i), scale.yToCanvas(v));
+        });
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        data.forEach((v,i) => {
+          if (i <= visible)
+            ctx.beginPath(), ctx.arc(scale.xToCanvas(i), scale.yToCanvas(v), 4, 0, Math.PI*2), ctx.fill();
+        });
+      }
+
+      if (progress < steps) requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
   }
 
-  // Interactivity: show tooltip when hovering near points
   let lastPlot = null;
+
   canvas.addEventListener('mousemove', (ev) => {
     if (!lastPlot) return;
     const rect = canvas.getBoundingClientRect();
@@ -157,28 +158,19 @@
       tooltip.hidden = true;
     }
   });
+  canvas.addEventListener('mouseleave', () => tooltip.hidden = true);
 
-  canvas.addEventListener('mouseleave', () => { tooltip.hidden = true; });
-
-  // Render values into <pre>
   function showValues(data) {
     valuesPre.textContent = data.map((v,i)=> `${i}: ${v}`).join('\n');
   }
 
-  // Main draw function
   function draw() {
     let n = parseInt(termsInput.value, 10) || 1;
-    if (n < 1) n = 1;
-    if (n > 50) n = 50; // safety
+    n = Math.max(1, Math.min(n, 50));
     const data = fibonacci(n);
     showValues(data);
-    plotData(data, typeSelect.value);
+    plotData(data, typeSelect.value, logCheck.checked);
   }
 
-  // initial draw
-  draw();
-
   drawBtn.addEventListener('click', draw);
-  // allow Enter on input to redraw
-  termsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') draw(); });
 })();
