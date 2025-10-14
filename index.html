@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gráfica – Sucesión de Fibonacci</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Sucesión de Fibonacci — Gráfica</h1>
+
+    <form id="controls" class="controls" onsubmit="return false;">
+      <label for="terms">Número de términos (n):</label>
+      <input id="terms" type="number" min="1" max="50" value="12" />
+      <label for="type">Tipo de gráfico:</label>
+      <select id="type">
+        <option value="line">Línea</option>
+        <option value="bar">Barras</option>
+        <option value="dots">Puntos</option>
+      </select>
+      <button id="drawBtn" type="button">Graficar</button>
+    </form>
+
+    <section class="canvas-wrap">
+      <canvas id="chart" width="900" height="450"></canvas>
+      <div id="tooltip" class="tooltip" hidden></div>
+    </section>
+
+    <section class="data">
+      <h2>Valores</h2>
+      <pre id="values" class="values"></pre>
+    </section>
+
+    <footer class="footer">
+      <small>Hecho con HTML, CSS y JavaScript — Fibonacci</small>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
