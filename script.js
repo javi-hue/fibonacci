@@ -1,54 +1,137 @@
-const btn = document.getElementById("generateBtn");
-const numInput = document.getElementById("numTerms");
-const ctx = document.getElementById("fibonacciChart").getContext("2d");
+let chart = null;
 
-let chart;
+function fibonacci(n) {
+    const sequence = [0, 1];
+    for (let i = 2; i < n; i++) {
+        sequence.push(sequence[i - 1] + sequence[i - 2]);
+    }
+    return sequence.slice(0, n);
+}
 
-btn.addEventListener("click", () => {
-  const n = parseInt(numInput.value);
-  if (n < 2 || n > 30) {
-    alert("Introduce un número entre 2 y 30");
-    return;
-  }
+function generateFibonacci() {
+    const terms = parseInt(document.getElementById('terms').value);
+    
+    if (terms < 2 || terms > 50) {
+        alert('Por favor, ingresa un número entre 2 y 50');
+        return;
+    }
 
-  const fib = [0, 1];
-  for (let i = 2; i < n; i++) fib.push(fib[i - 1] + fib[i - 2]);
+    const sequence = fibonacci(terms);
+    
+    // Mostrar secuencia
+    document.getElementById('sequenceOutput').textContent = sequence.join(', ');
+    
+    // Calcular suma
+    const sum = sequence.reduce((a, b) => a + b, 0);
+    document.getElementById('sumTotal').textContent = sum.toLocaleString();
+    
+    // Calcular razón áurea
+    if (sequence.length >= 2) {
+        const ratio = (sequence[sequence.length - 1] / sequence[sequence.length - 2]).toFixed(6);
+        document.getElementById('goldenRatio').textContent = `${ratio} (φ ≈ 1.618034)`;
+    }
 
-  const labels = fib.map((_, i) => `n=${i}`);
+    // Crear gráfico
+    createChart(sequence);
+}
 
-  if (chart) chart.destroy();
+function createChart(sequence) {
+    const ctx = document.getElementById('fibonacciChart').getContext('2d');
+    
+    if (chart) {
+        chart.destroy();
+    }
 
-  chart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: "Secuencia Fibonacci",
-        data: fib,
-        borderColor: "#66fcf1",
-        backgroundColor: "rgba(102, 252, 241, 0.3)",
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 6,
-        pointBackgroundColor: "#45a29e",
-        pointHoverRadius: 8
-      }]
-    },
-    options: {
-      responsive: true,
-      animation: {
-        duration: 1500,
-        easing: "easeOutQuart"
-      },
-      scales: {
-        x: { ticks: { color: "#c5c6c7" } },
-        y: { ticks: { color: "#c5c6c7" } }
-      },
-      plugins: {
-        legend: {
-          labels: { color: "#fff" }
+    const labels = sequence.map((_, i) => `F${i}`);
+    
+    chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Valor de Fibonacci',
+                data: sequence,
+                backgroundColor: sequence.map((_, i) => {
+                    const hue = (i * 360 / sequence.length);
+                    return `hsla(${hue}, 70%, 60%, 0.8)`;
+                }),
+                borderColor: sequence.map((_, i) => {
+                    const hue = (i * 360 / sequence.length);
+                    return `hsla(${hue}, 70%, 50%, 1)`;
+                }),
+                borderWidth: 2,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 1500,
+                easing: 'easeInOutQuart'
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: {
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: {
+                        size: 16
+                    },
+                    bodyFont: {
+                        size: 14
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 12
+                        }
+                    }
+                }
+            }
         }
+    });
+}
+
+function downloadChart() {
+    if (!chart) {
+        alert('Primero debes generar un gráfico');
+        return;
+    }
+
+    const link = document.createElement('a');
+    link.download = 'fibonacci_chart.png';
+    link.href = chart.toBase64Image();
+    link.click();
+}
+
+// Generar gráfico inicial
+generateFibonacci();
       }
     }
   });
